@@ -36,6 +36,10 @@ A suíte final executou 47 testes: 46 aprovados e um ignorado (symlink real sem 
 
 ## Limites conhecidos
 
+A instalação pessoal foi validada posteriormente pelo catálogo do runtime Codex com recarga: skill em escopo de usuário, habilitada e sem erros de descoberta. O cliente instalado também concluiu uma consulta textual curta e sintética com Opus 5.5; foi conferido um único turno e a repetição em cache sem acesso ao adaptador. Estado, IDs e resposta desse teste permanecem locais.
+
+A atualização dos gatilhos amplia os critérios de oito para 14 e altera somente instruções e documentação. Ela não muda o transporte Python nem adiciona envios automáticos. A validação estrutural da skill e os hashes do pacote e da cópia instalada foram conferidos após a atualização; não foi necessária nova consulta ao Copilot para essa mudança de texto.
+
 - Modelo e controles dependem da interface em português observada. Indisponibilidade ou ambiguidade bloqueiam o envio.
 - TXT e PNG têm teste real; demais formatos dependem do filtro exibido e ainda precisam de teste de ingestão.
 - Hashes e chips verificam somente estado local e nomes visíveis, não os bytes no servidor. Não edite anexos durante a operação. Uploads já presentes bloqueiam `resume`; alteração detectada durante upload impede o pedido, mas a cópia no OneDrive pode já ter ocorrido.

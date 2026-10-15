@@ -1,9 +1,30 @@
 ---
 name: copilot-consult
-description: Consultar Microsoft 365 Copilot no Windows como apoio ao Codex em problemas complexos, tentativas fracassadas, sínteses volumosas, comparação de alternativas, erros recorrentes, contradições documentais, decisões que afetam várias partes ou revisão independente. Usa a interface autenticada e exige Claude Opus 5.5.
+description: Consultar Microsoft 365 Copilot no Windows como apoio ao Codex em problemas complexos, tentativas fracassadas, sínteses volumosas, comparação de alternativas, erros recorrentes, contradições documentais, decisões que afetam várias partes, revisão independente, incerteza relevante, divergência entre testes e comportamento real, correção sem causa identificada, mudanças difíceis de reverter, impacto em segurança ou integridade e verificação final de tarefa extensa. Usa a interface autenticada e exige Claude Opus 5.5.
 ---
 
 Use `scripts/copilot.py` para controlar o aplicativo Microsoft 365 Copilot pela interface normal do Windows. Leia [operação e limites](references/operation.md) antes da primeira consulta. O transporte usa Python e UI Automation/SendInput públicos, sem Node.js, API privada, cookies, tokens, DevTools ou extensões.
+
+## Gatilhos de consulta
+
+Considere propor uma consulta quando uma segunda análise puder contribuir para uma destas situações:
+
+1. **Problema complexo.**
+2. **Tentativa fracassada de solução.**
+3. **Síntese de conteúdo volumoso.**
+4. **Comparação de alternativas.**
+5. **Erro recorrente.**
+6. **Contradição documental.**
+7. **Decisão que afeta várias partes do projeto.**
+8. **Necessidade de revisão independente.**
+9. **Incerteza relevante:** a solução depende de uma hipótese central pouco sustentada.
+10. **Divergência entre testes e comportamento real:** os testes passam, mas o problema continua, ou a falha é intermitente.
+11. **Correção sem causa identificada:** a alteração elimina o sintoma, mas o agente não consegue explicar por quê.
+12. **Mudança difícil de reverter:** migração de dados, alteração de formatos persistidos ou quebra de compatibilidade.
+13. **Impacto em segurança ou integridade:** mudança relevante em autenticação, permissões ou tratamento de dados.
+14. **Verificação final de tarefa extensa:** conferir requisitos esquecidos, efeitos colaterais e lacunas nos testes antes de declarar conclusão.
+
+São critérios para julgamento do agente, sem disparos automáticos por contagem ou tempo. Ao sugerir uma consulta, explique o motivo e a contribuição esperada. A presença de um gatilho não autoriza transmitir conteúdo: siga a autorização por tarefa descrita abaixo.
 
 ## Autorização
 

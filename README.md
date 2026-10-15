@@ -18,7 +18,15 @@ python skill/copilot-consult/scripts/copilot.py --help
 python -B -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-O instalador não instala Python nem o aplicativo e não concede autorização para consultas. Este pacote não foi instalado globalmente no computador de desenvolvimento.
+O instalador não instala Python nem o aplicativo e não concede autorização para consultas.
+
+Para o caminho pessoal de descoberta `.agents/skills`, passe `--destination` explicitamente. Por exemplo, no PowerShell: `python install_skill.py --destination "$env:USERPROFILE/.agents/skills/copilot-consult"` para simular e o mesmo comando com `--apply` para instalar. Essa foi a localização validada pelo runtime do Codex; o padrão do instalador continua sendo `CODEX_HOME/skills` ou `~/.codex/skills`.
+
+## Gatilhos de consulta
+
+A skill pode ser sugerida pelo agente conforme os [14 critérios definidos em SKILL.md](skill/copilot-consult/SKILL.md#gatilhos-de-consulta). Aos oito critérios iniciais foram acrescentados: incerteza relevante, divergência entre testes e comportamento real, correção sem causa identificada, mudança difícil de reverter, impacto em segurança ou integridade e verificação final de tarefa extensa.
+
+Esses critérios orientam o julgamento do agente; não há disparo automático por contagem ou tempo. Se ainda não houver autorização para consultas naquela tarefa, o agente explica a finalidade e pede autorização antes de transmitir conteúdo ao Copilot.
 
 ## Uso e privacidade
 
