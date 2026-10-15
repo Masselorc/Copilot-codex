@@ -36,6 +36,18 @@ A suíte final executou 47 testes: 46 aprovados e um ignorado (symlink real sem 
 
 ## Limites conhecidos
 
+### Correção após timeouts nativos
+
+Uma captura fornecida pelo usuário registrou 22 execuções, zero bloqueios e três falhas por timeout de dois segundos: duas de authorize e uma de cost. Também mostrou conclusão de SessionStart/session, PostToolUse/failures e outra ocorrência de cost. Isso é evidência de eventos nativos anteriores à correção; não comprova as cinco regras nem a eficácia da guarda de autorização. A leitura da Library confirmou o texto e metadados; a materialização local pelo helper oficial foi impedida por ausência de os.setxattr no Windows, sem contorno desse fluxo.
+
+Medições locais com entradas sintéticas separaram inicialização, execução do handler e shell sem perfil. Na primeira amostra, Python direto ficou em cerca de 22–35 ms e handlers em até 357 ms em rajadas de seis processos. O shell com handler chegou a 1.697 ms em rajadas de quatro. Sob carga adicional, até a inicialização Python variou para cerca de um segundo e um handler chegou a 1.769 ms. Não se reproduziram os três timeouts nem se isolou sua causa exata. As amostras ocorreram sob cargas diferentes; não são prova de ganho percentual da correção.
+
+Foi identificado e removido trabalho desnecessário: abertura/inicialização de schema e transação de escrita para chamadas alheias ao envio. authorize agora ignora chamadas irrelevantes antes de qualquer acesso ao estado, e consulta autorização/estado somente em leitura. cost sem correspondência não obtém trava de escrita. Atualizações de avisos e contadores continuam atômicas. O timeout externo passou a 10 segundos para acomodar lançamento do shell/processo e variação observada; SQLite mantém limite de 100 ms. Não foi retirado o controle de autorização, criado processo persistente ou alterada segurança.
+
+A suíte atual executou 82 testes: 81 aprovados e um ignorado (symlink Windows). Além dos casos anteriores, cobre ausência de acesso ao estado em autorização irrelevante, leitura sem transação de escrita, banco exclusivamente bloqueado e recusa do CLI antes da UI quando a autorização está ausente ou o ledger está bloqueado. São testes sintéticos. O runtime pode continuar após falha/timeout de hook; a recusa explícita do handler e a checagem independente do CLI/protocolo são distintas. Não se presume fail-closed do runtime.
+
+A mudança de timeout exige nova revisão de confiança das cinco definições. A versão corrigida ainda precisa de confirmação de disparos e efeitos na conversa nativa após essa revisão. A tarefa delegada com ferramentas locais não oferece prova equivalente: a documentação não suporta hooks de comando locais em orquestração cloud. Sem nova consulta Copilot nesta correção. Consulte [o guia](../skill/copilot-consult/references/hooks.md).
+
 A instalação pessoal foi validada posteriormente pelo catálogo do runtime Codex com recarga: skill em escopo de usuário, habilitada e sem erros de descoberta. O cliente instalado também concluiu uma consulta textual curta e sintética com Opus 5.5; foi conferido um único turno e a repetição em cache sem acesso ao adaptador. Estado, IDs e resposta desse teste permanecem locais.
 
 A atualização intermediária ampliou os critérios de oito para 14 somente nas instruções. A etapa seguinte adicionou cinco critérios (total 19), cinco regras de hooks opcionais, atualização gerenciada com backup, revogação de autorização e identificação de escopo no cliente. Não foram feitas novas consultas reais ao Copilot nesta etapa de hooks; os testes do envio atualizado usam adaptadores falsos.

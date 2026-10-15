@@ -48,16 +48,17 @@ def deny(message):
 
 
 class Store:
-    def __init__(self,directory):
+    def __init__(self,directory,*,initialize=True):
         self.directory=Path(directory)
-        self.directory.mkdir(parents=True,exist_ok=True)
         self.path=self.directory/"hook-state.sqlite3"
-        with self.connection() as c:
-            c.executescript("CREATE TABLE IF NOT EXISTS tasks(k TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS bindings(k TEXT PRIMARY KEY,task_key TEXT NOT NULL); CREATE TABLE IF NOT EXISTS starts(k TEXT PRIMARY KEY);")
+        if initialize:
+            self.directory.mkdir(parents=True,exist_ok=True)
+            with self.connection() as c:
+                c.executescript("CREATE TABLE IF NOT EXISTS tasks(k TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS bindings(k TEXT PRIMARY KEY,task_key TEXT NOT NULL); CREATE TABLE IF NOT EXISTS starts(k TEXT PRIMARY KEY);")
 
     @contextmanager
-    def connection(self):
-        c=sqlite3.connect(self.path,timeout=.1)
+    def connection(self,*,readonly=False):
+        c=sqlite3.connect(self.path.absolute().as_uri()+"?mode=ro",uri=True,timeout=.1) if readonly else sqlite3.connect(self.path,timeout=.1)
         try:
             c.execute("PRAGMA busy_timeout=100")
             with c:
@@ -92,14 +93,29 @@ class Store:
         cwd=payload.get("cwd")
         if not isinstance(session,str) or not session or len(session)>256 or not isinstance(cwd,str) or not Path(cwd).is_absolute():
             return deny("Cannot identify the task for Copilot authorization") if rule=="authorize" and "copilot.py" in command(payload).lower() else {}
+        # Authorization reads only metadata and the ledger. It must never wait
+        # for a hook-state writer or initialize schema on ordinary tool calls.
+        if rule in {"authorize","cost","stop"}:
+            with self.connection(readonly=True) as c:
+                binding=c.execute("SELECT task_key FROM bindings WHERE k=?",(self.binding_key(session,cwd),)).fetchone()
+                row=c.execute("SELECT data FROM tasks WHERE k=?",(binding[0],)).fetchone() if binding else None
+                data=json.loads(row[0]) if row else None
+            if rule=="authorize":
+                return authorize(payload,data,bridge_state)
+            if data is None:
+                return {}
+            if rule=="cost" and (not command(payload) or command_hash(command(payload)) not in data["expensive"]):
+                return {}
+            if rule=="stop" and (payload.get("stop_hook_active") is not False or not payload.get("turn_id") or data["stop_issued"] or (not data["extensive"] and data["calls"]<20)):
+                return {}
+        # Re-read under the write transaction before changing counters/notices.
+        # Only matched reminders and identified PostToolUse events reach here.
         with self.connection() as c:
             c.execute("BEGIN IMMEDIATE")
             binding=c.execute("SELECT task_key FROM bindings WHERE k=?",(self.binding_key(session,cwd),)).fetchone()
             key=binding[0] if binding else None
             row=c.execute("SELECT data FROM tasks WHERE k=?",(key,)).fetchone() if key else None
             data=json.loads(row[0]) if row else None
-            if rule=="authorize":
-                return authorize(payload,data,bridge_state)
             if rule=="session" and data is None:
                 # At most one startup and one resume-family notice per unbound session.
                 family="startup" if payload.get("source")=="startup" else "resume"
@@ -246,6 +262,22 @@ def authorize(payload,data,bridge_state):
         return deny("Copilot authorization could not be verified for this task/scope, or was revoked. Stop this send; obtain explicit human authorization if absent. Do not bypass the guard.")
 
 
+def dispatch(rule,payload,state_dir,bridge_state):
+    """Filter irrelevant calls before any filesystem, schema or state access."""
+    if payload.get("hook_event_name")!=RULE_EVENTS[rule]:
+        return {}
+    cmd=command(payload)
+    if rule=="authorize":
+        try:
+            if copilot_arguments(cmd) is None:
+                return {}
+        except (ValueError,TypeError):
+            return deny("Copilot command could not be identified safely; stop and inspect locally")
+    elif (rule=="cost" and not cmd) or (rule in {"cost","failures"} and SELF.search(cmd)):
+        return {}
+    return Store(state_dir,initialize=rule=="session").handle(rule,payload,bridge_state)
+
+
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--rule",required=True,choices=RULE_EVENTS)
@@ -260,7 +292,7 @@ def main(argv=None):
         payload=json.loads(raw)
         if not isinstance(payload,dict):
             raise ValueError("Hook input must be an object")
-        result=Store(args.state_dir).handle(args.rule,payload,args.bridge_state_dir)
+        result=dispatch(args.rule,payload,args.state_dir,args.bridge_state_dir)
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError):
         result=deny("Copilot authorization hook unavailable; stop and inspect locally") if args.rule=="authorize" else {}
     print(json.dumps(result,ensure_ascii=True))

@@ -10,6 +10,7 @@ import uuid
 import install_skill
 
 RULES=(("SessionStart","session","startup|resume|compact|fork|clear"),("PostToolUse","failures","*"),("PreToolUse","authorize","Bash"),("PreToolUse","cost","Bash"),("Stop","stop",None))
+HOOK_TIMEOUT_SECONDS=10
 
 
 def encoded(value):
@@ -56,7 +57,7 @@ def definitions(skill_dir,state_dir,bridge_state_dir):
     entries=[]
     for event,rule,matcher in RULES:
         command="python -B "+" ".join('"'+x+'"' for x in args)+" --rule "+rule
-        group={"hooks":[{"type":"command","command":command,"commandWindows":command,"timeout":2,"statusMessage":"Copilot consultation guard: "+rule,"additionalContextLimit":300}]}
+        group={"hooks":[{"type":"command","command":command,"commandWindows":command,"timeout":HOOK_TIMEOUT_SECONDS,"statusMessage":"Copilot consultation guard: "+rule,"additionalContextLimit":300}]}
         if matcher is not None:
             group["matcher"]=matcher
         if event=="Stop":

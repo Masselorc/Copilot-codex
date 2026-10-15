@@ -1,7 +1,9 @@
 """Synthetic events only. No Codex trust changes or Copilot access."""
 from pathlib import Path
 import copy
+from contextlib import redirect_stdout
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -16,7 +18,7 @@ SCRIPTS=PACKAGE/"skill"/"copilot-consult"/"scripts"
 sys.path[:0]=[str(PACKAGE),str(SCRIPTS)]
 import manage_hooks
 import install_skill
-from hook_dispatch import Store, canonical, failure_code
+from hook_dispatch import Store, canonical, failure_code, dispatch
 from authorization import scope_hash,check_grant
 from protocol import CopilotProtocol,GrantRequired,GrantScopeError
 
@@ -188,6 +190,65 @@ class HooksTests(unittest.TestCase):
         result=self.protocol.query(self.project_key,"demand-a","task-a","request-a","synthetic",synthetic=True,expected_scope_sha256=h)
         self.assertEqual(result["status"],"COMPLETE")
         self.assertEqual(self.fake.send_count,1)
+
+    def test_unrelated_authorization_never_constructs_store_or_accesses_state(self):
+        for cmd in ("python unrelated.py","python copilot.py doctor","python copilot.py status --task example"):
+            with patch("hook_dispatch.Store",side_effect=AssertionError("No state access allowed")):
+                self.assertEqual(dispatch("authorize",self.event("PreToolUse",tool_input={"command":cmd}),self.root/"must-not-exist",self.bridge),{})
+        self.assertFalse((self.root/"must-not-exist").exists())
+
+    def test_auth_and_unmatched_cost_use_readonly_hook_state(self):
+        h=self.grant()
+        real=self.store.connection
+        modes=[]
+        def tracked(*,readonly=False):
+            modes.append(readonly)
+            return real(readonly=readonly)
+        with patch.object(self.store,"connection",side_effect=tracked):
+            self.assertEqual(self.run_rule("authorize","PreToolUse",tool_input={"command":self.query_command(h)}),{})
+            self.assertEqual(self.run_rule("cost","PreToolUse"),{})
+        self.assertEqual(modes,[True,True])
+
+    def test_exclusive_state_lock_ignores_unrelated_but_denies_candidate(self):
+        h=self.grant()
+        argv=[sys.executable,"-B",str(SCRIPTS/"hook_dispatch.py"),"--rule","authorize","--state-dir",str(self.store.directory),"--bridge-state-dir",str(self.bridge)]
+        connection=sqlite3.connect(self.store.path)
+        try:
+            connection.execute("BEGIN EXCLUSIVE")
+            for cmd,expected in (("python unrelated.py",False),(self.query_command(h),True)):
+                result=subprocess.run(argv,input=json.dumps(self.event("PreToolUse",tool_input={"command":cmd})),capture_output=True,text=True,timeout=5)
+                self.assertEqual(result.returncode,0,result.stderr)
+                value=json.loads(result.stdout)
+                if expected:
+                    self.assertEqual(value["hookSpecificOutput"]["permissionDecision"],"deny")
+                else:
+                    self.assertEqual(value,{})
+        finally:
+            connection.rollback()
+            connection.close()
+
+    def test_cli_missing_or_locked_grant_blocks_before_ui_even_without_hook(self):
+        import copilot
+        h=self.grant()
+        argv=["--state-dir",str(self.bridge),"query","--project",str(self.project),"--demand","demand-a","--task","task-a","--request","synthetic-cli","--scope-sha256",h,"--prompt-file",str(self.root/"not-read.txt"),"--synthetic"]
+        connection=sqlite3.connect(self.bridge/"copilot-ledger.sqlite3")
+        try:
+            # WAL permits readers during an exclusive writer. Use rollback
+            # journal only in this disposable fixture to block actual reads.
+            self.assertEqual(connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0],"delete")
+            connection.execute("BEGIN EXCLUSIVE")
+            with patch.dict(sys.modules,{"app":None}),redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(copilot.main(argv),2)
+            self.assertEqual(json.loads(output.getvalue())["status"],"BLOCKED")
+            self.assertIn("locked",json.loads(output.getvalue())["reason"])
+        finally:
+            connection.rollback()
+            connection.close()
+        argv[argv.index("--task")+1]="missing-task"
+        with patch.dict(sys.modules,{"app":None}),redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(copilot.main(argv),2)
+        self.assertEqual(json.loads(output.getvalue())["status"],"BLOCKED")
+        self.assertIn("No recorded human authorization",json.loads(output.getvalue())["reason"])
 
     def test_limits_bound_event_state_and_no_raw_output_stored(self):
         for i in range(520):

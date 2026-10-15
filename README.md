@@ -32,6 +32,8 @@ Esses critérios orientam o julgamento do agente; não há disparo automático p
 
 ## Cinco hooks locais opcionais
 
+A correção para timeouts no Windows usa limite externo de 10 segundos, sem aumentar a espera de SQLite (100 ms). authorize ignora chamadas irrelevantes antes de acessar estado; autorização e verificação inicial de custo usam somente leitura. Timeout/falha de hook não é garantia de bloqueio pelo runtime: a guarda independente do CLI/protocolo permanece obrigatória. Atualizar as definições antigas de 2 segundos exige nova revisão de confiança pelo usuário; o pacote não a concede.
+
 O pacote inclui lembrete de início/retomada, aviso após duas falhas semelhantes identificáveis, guarda de autorização antes do CLI de envio, lembrete para comandos previamente marcados como caros e revisão final de tarefa extensa com uma única continuação. O [guia de hooks](skill/copilot-consult/references/hooks.md) descreve sinais, limites, vínculo por tarefa, preparação, registro, confiança e remoção.
 
 Use `python manage_hooks.py prepare --skill-dir CAMINHO-DA-SKILL --output copilot-hooks.pending.json` para simular. Com `--apply`, grava somente a configuração pendente. `register --apply` é uma opção separada, com backup e preservação de outros hooks; depois o usuário precisa revisar/confiar nas definições em `/hooks`. O pacote nunca autoaprova confiança ou altera segurança. `python manage_hooks.py remove` simula a remoção, e `remove --apply` remove somente as definições exatas do recibo.
