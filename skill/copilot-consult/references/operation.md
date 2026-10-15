@@ -12,15 +12,20 @@ python $cli --help
 python $cli doctor
 
 # Somente depois de autorização humana real nesta tarefa:
-python $cli authorize --project . --demand revisao-exemplo --task tarefa-atual --evidence 'Autorização nesta tarefa' --scope 'Revisão técnica com texto sintético' --synthetic-only
+$grant = python $cli authorize --project . --demand revisao-exemplo --task tarefa-atual --evidence 'Autorização nesta tarefa' --scope 'Revisão técnica com texto sintético' --synthetic-only | ConvertFrom-Json
 
 # Prepare consulta.txt em UTF-8 com conteúdo sintético revisado.
-python $cli query --project . --demand revisao-exemplo --task tarefa-atual --request consulta-01 --prompt-file consulta.txt --synthetic --wait 35
+python $cli query --project . --demand revisao-exemplo --task tarefa-atual --request consulta-01 --prompt-file consulta.txt --scope-sha256 $grant.scope_sha256 --synthetic --wait 35
 python $cli recover --project . --demand revisao-exemplo --task tarefa-atual --request consulta-01 --wait 35
 python $cli status --project . --demand revisao-exemplo --task tarefa-atual --request consulta-01
+
+# Para revogar a autorização desta tarefa:
+python $cli revoke --project . --demand revisao-exemplo --task tarefa-atual --reason 'Revogação solicitada pelo usuário'
 ```
 
-Após instalação, substitua `$cli` pelo caminho de `scripts/copilot.py` no destino mostrado pelo instalador. `doctor` não envia conteúdo, mas seu JSON inclui o ID da conversa visível: mantenha-o privado. `authorize`, `status` e `--help` não precisam abrir a interface. `query`, `resume` e `recover` precisam dela; `recover` não envia.
+Após instalação, substitua `$cli` pelo caminho de `scripts/copilot.py` no destino mostrado pelo instalador. `doctor` não envia conteúdo, mas seu JSON inclui o ID da conversa visível: mantenha-o privado. `authorize`, `revoke`, `status` e `--help` não precisam abrir a interface. `query`, `resume` e `recover` precisam dela; `recover` não envia. O hash retornado por `authorize` deve ser informado também em `resume`; nunca o gere a partir de um escopo diferente para tentar liberar envio.
+
+O cliente confere autorização, escopo e revogação antes de inicializar a interface para query/resume e o protocolo reconfere antes do envio. Revogação durante preparação impede envio; se a ação já tiver ocorrido, revogar não a desfaz e deve-se somente recuperar o estado. Hooks opcionais adicionam outra conferência, com limites descritos em [hooks](hooks.md).
 
 Para anexar, acrescente `--attach arquivo.txt`, repetível. Autorize previamente a cópia no OneDrive corporativo/escolar. TXT e PNG foram testados com conteúdo sintético; outras extensões exigem verificação própria. `--synthetic-only` exige `--synthetic` nas consultas, mas essas opções não detectam conteúdo sensível. Revise os arquivos antes do envio.
 

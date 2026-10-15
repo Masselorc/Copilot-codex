@@ -54,7 +54,7 @@ class InstallerTests(unittest.TestCase):
 
         result = install_skill.apply_install(plan)
         self.assertEqual(result["status"], "INSTALLED")
-        self.assertEqual(result["files"], 7)
+        self.assertEqual(result["files"], len(install_skill.ALLOWLIST))
         manifest_path = destination / install_skill.MANIFEST_NAME
         manifest_bytes = manifest_path.read_bytes()
         manifest = json.loads(manifest_bytes)

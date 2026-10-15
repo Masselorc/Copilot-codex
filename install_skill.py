@@ -2,6 +2,7 @@
 
 The default invocation is a read-only dry run. Copying requires ``--apply``.
 Only the fixed source allowlist is copied; this installer never runs skill code.
+Updates require --update, verify the prior manifest and preserve a backup.
 """
 from __future__ import annotations
 
@@ -27,6 +28,10 @@ ALLOWLIST = (
     "scripts/native_uia.py",
     "scripts/protocol.py",
     "scripts/response_text.py",
+    "scripts/authorization.py",
+    "scripts/hook_dispatch.py",
+    "scripts/hook_admin.py",
+    "references/hooks.md",
 )
 _REPARSE_POINT_ATTRIBUTE = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
@@ -173,7 +178,7 @@ def apply_install(plan: InstallPlan) -> dict[str, object]:
     """Write a sibling staging directory, verify it, then rename atomically."""
     require_supported_python()
     if tuple(item.relative_path for item in plan.files) != ALLOWLIST:
-        raise InstallError("Install plan does not match the fixed seven-file allowlist")
+        raise InstallError("Install plan does not match the fixed source allowlist")
     for item in plan.files:
         if hashlib.sha256(item.contents).hexdigest() != item.sha256:
             raise InstallError(f"Install plan SHA-256 mismatch: {item.relative_path}")
@@ -244,6 +249,9 @@ def apply_install(plan: InstallPlan) -> dict[str, object]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--update", action="store_true", help="Update only manifest-managed files after verifying them; backup required and preserved",
+    )
+    parser.add_argument(
         "--destination",
         type=Path,
         help="Install path (default: CODEX_HOME/skills/copilot-consult or ~/.codex/skills/copilot-consult)",
@@ -262,6 +270,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         require_supported_python()
         destination = args.destination or default_destination()
+        if args.update:
+            result=update_install(bundled_skill_source(),destination,apply=args.apply)
+            print(json.dumps(result,ensure_ascii=True,indent=2))
+            return 0
         plan = prepare_install(bundled_skill_source(), destination)
         if args.apply:
             result = apply_install(plan)
@@ -278,6 +290,86 @@ def main(argv: list[str] | None = None) -> int:
     except InstallError as exc:
         print(f"install error: {exc}", file=sys.stderr)
         return 2
+
+
+def _atomic_file(path,data):
+    _reject_link_components(path,"Managed update file")
+    path.parent.mkdir(parents=True,exist_ok=True)
+    _reject_link_components(path.parent,"Managed update directory")
+    descriptor,name=tempfile.mkstemp(prefix=".copilot-update-",suffix=".tmp",dir=path.parent)
+    try:
+        with os.fdopen(descriptor,"wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name,path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+def update_install(source,destination,*,apply=False):
+    source_path,files=_validate_source(source)
+    destination=_absolute(destination)
+    _reject_link_components(destination,"Installed skill")
+    if _is_within(destination.resolve(),source_path):
+        raise InstallError("Update destination cannot be inside the source")
+    manifest_path=destination/MANIFEST_NAME
+    try:
+        old_manifest=manifest_path.read_bytes()
+        entries=json.loads(old_manifest)["files"]
+        if not isinstance(entries,list) or len({item["path"] for item in entries})!=len(entries):
+            raise InstallError("Invalid prior manifest")
+        old={}
+        for entry in entries:
+            if entry["path"] not in ALLOWLIST:
+                raise InstallError("Prior manifest contains an unmanaged path")
+            path=destination/entry["path"]
+            _reject_link_components(path,"Installed file")
+            contents=path.read_bytes()
+            if hashlib.sha256(contents).hexdigest()!=entry["sha256"]:
+                raise InstallError("Installed file was modified; preserve it: "+entry["path"])
+            old[entry["path"]]=contents
+        for item in files:
+            if item.relative_path not in old and _lexists(destination/item.relative_path):
+                raise InstallError("New managed path already contains an unrelated file: "+item.relative_path)
+    except (KeyError,TypeError,ValueError,OSError) as exc:
+        raise InstallError("Cannot verify existing installation manifest") from exc
+    manifest=_manifest_bytes(files)
+    summary={"status":"DRY_RUN_UPDATE","files":len(files),"manifest_sha256":hashlib.sha256(manifest).hexdigest(),"written":False}
+    if not apply:
+        return summary
+    backup_root=destination.parent.parent/".copilot-consult-backups"
+    _reject_link_components(backup_root,"Backup")
+    backup_root.mkdir(parents=True,exist_ok=True)
+    backup=Path(tempfile.mkdtemp(prefix="update-",dir=backup_root))
+    for relative,data in {**old,MANIFEST_NAME:old_manifest}.items():
+        target=backup/relative
+        target.parent.mkdir(parents=True,exist_ok=True)
+        target.write_bytes(data)
+    changed=[]
+    try:
+        if manifest_path.read_bytes()!=old_manifest or any((destination/name).read_bytes()!=data for name,data in old.items()):
+            raise InstallError("Installation changed during update review")
+        for item in files:
+            _atomic_file(destination/item.relative_path,item.contents)
+            changed.append(item)
+        _atomic_file(manifest_path,manifest)
+        for item in files:
+            if (destination/item.relative_path).read_bytes()!=item.contents:
+                raise InstallError("Installed update failed byte verification")
+    except Exception as exc:
+        for item in reversed(changed):
+            target=destination/item.relative_path
+            if target.read_bytes()!=item.contents:
+                continue  # Never overwrite an intervening user change.
+            if item.relative_path in old:
+                _atomic_file(target,old[item.relative_path])
+            else:
+                target.unlink()
+        if manifest_path.read_bytes()==manifest:
+            _atomic_file(manifest_path,old_manifest)
+        raise InstallError("Managed update failed; backup preserved at "+str(backup)) from exc
+    return {**summary,"status":"UPDATED","written":True,"backup":str(backup),"hooks_registered":False,"trust_granted":False}
 
 
 if __name__ == "__main__":

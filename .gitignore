@@ -14,3 +14,9 @@ screenshots/
 install-test-*/
 protocol-test-*/
 attachment-test-*/
+hooks-test-*/
+hook-manager-*/
+managed-update-*/
+*.pending.json
+*.copilot-consult-receipt.json
+*.copilot-backup-*

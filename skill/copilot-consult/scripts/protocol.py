@@ -34,6 +34,7 @@ import sqlite3
 import sys
 import time
 import uuid
+from authorization import scope_hash
 from typing import Any, Iterable, Iterator, Mapping, Protocol as TypingProtocol
 
 
@@ -317,6 +318,11 @@ class CopilotProtocol:
             with conn:
                 conn.executescript(
                     """
+                    CREATE TABLE IF NOT EXISTS grant_revocations (
+                        project TEXT NOT NULL, demand TEXT NOT NULL, task_id TEXT NOT NULL,
+                        reason TEXT NOT NULL, revoked_at TEXT NOT NULL,
+                        PRIMARY KEY(project,demand,task_id)
+                    );
                     CREATE TABLE IF NOT EXISTS request_events (
                         event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         project TEXT NOT NULL,
@@ -368,6 +374,8 @@ class CopilotProtocol:
         conn = self._connect()
         try:
             with conn:
+                if conn.execute("SELECT 1 FROM grant_revocations WHERE project=? AND demand=? AND task_id=?",(project,demand,task_id)).fetchone():
+                    raise GrantConflict("Authorization was revoked; it cannot be silently renewed")
                 row = conn.execute(
                     "SELECT evidence, scope, synthetic_only FROM grants "
                     "WHERE project=? AND demand=? AND task_id=?",
@@ -396,9 +404,27 @@ class CopilotProtocol:
             ).fetchone()
             if row is None:
                 raise GrantRequired("Record human approval for this project/demand/task before querying")
+            if conn.execute("SELECT 1 FROM grant_revocations WHERE project=? AND demand=? AND task_id=?",(project,demand,task_id)).fetchone():
+                raise GrantRequired("Authorization revoked for this task")
             return row
         finally:
             conn.close()
+
+    def revoke(self, project, demand, task_id, *, reason):
+        project,demand,task_id=self._pair(project,demand,task_id)
+        reason=_clean_key(reason,"reason")
+        conn=self._connect()
+        try:
+            with conn:
+                conn.execute("INSERT OR IGNORE INTO grant_revocations VALUES(?,?,?,?,?)",(project,demand,task_id,reason,_utc_now()))
+        finally:
+            conn.close()
+
+    def _check_scope(self, project, demand, task_id, expected_scope_sha256):
+        grant=self._grant_row(project,demand,task_id)
+        if expected_scope_sha256 is not None and scope_hash(grant["scope"])!=expected_scope_sha256:
+            raise GrantScopeError("Authorization scope differs from requested scope")
+        return grant
 
     def query(
         self,
@@ -410,13 +436,14 @@ class CopilotProtocol:
         attachments: Iterable[str | os.PathLike[str]] = (),
         *,
         synthetic: bool = False,
+        expected_scope_sha256: str | None = None,
     ) -> dict[str, Any]:
         """Run one request; after DISPATCHING, every path is at-most-once."""
         project, demand, task_id = self._pair(project, demand, task_id)
         request_id = _clean_key(request_id, "request_id")
         if not isinstance(synthetic, bool):
             raise ValueError("synthetic must be a bool")
-        grant = self._grant_row(project, demand, task_id)
+        grant = self._check_scope(project, demand, task_id, expected_scope_sha256)
         if grant["synthetic_only"] and not synthetic:
             raise GrantScopeError("This approval allows synthetic requests only")
         prompt_hash, attachment_hash, payload_hash, paths = _hash_request(
@@ -474,11 +501,16 @@ class CopilotProtocol:
                 project, demand, task_id, request_id, prompt, paths,
                 (prompt_hash, attachment_hash, payload_hash), "BEFORE_DISPATCH",
             )
+            self._check_scope(project,demand,task_id,expected_scope_sha256)
             self._set_status(project, demand, task_id, request_id, "DISPATCHING")
 
             # From here onward, even an exception is potentially post-click.
             send_error = None
             try:
+                try:
+                    self._check_scope(project,demand,task_id,expected_scope_sha256)
+                except (GrantRequired,GrantScopeError) as exc:
+                    raise SendNotAttempted(str(exc)) from exc
                 self.adapter.send()
             except SendNotAttempted as exc:
                 return self._send_not_attempted_result(
@@ -534,6 +566,7 @@ class CopilotProtocol:
         attachments: Iterable[str | os.PathLike[str]] = (),
         *,
         synthetic: bool = False,
+        expected_scope_sha256: str | None = None,
     ) -> dict[str, Any]:
         """Safely continue only a PREPARING request, with a read-only precheck.
 
@@ -545,7 +578,7 @@ class CopilotProtocol:
         request_id = _clean_key(request_id, "request_id")
         if not isinstance(synthetic, bool):
             raise ValueError("synthetic must be a bool")
-        grant = self._grant_row(project, demand, task_id)
+        grant = self._check_scope(project, demand, task_id, expected_scope_sha256)
         if grant["synthetic_only"] and not synthetic:
             raise GrantScopeError("This approval allows synthetic requests only")
         prompt_hash, attachment_hash, payload_hash, paths = _hash_request(
@@ -651,10 +684,15 @@ class CopilotProtocol:
             )
 
             # This durable transition precedes the sole permitted UI invoke.
+            self._check_scope(project,demand,task_id,expected_scope_sha256)
             self._set_status(project, demand, task_id, request_id, "DISPATCHING")
             self._record_event(project, demand, task_id, request_id, "RESUME_DISPATCHING")
             send_error = None
             try:
+                try:
+                    self._check_scope(project,demand,task_id,expected_scope_sha256)
+                except (GrantRequired,GrantScopeError) as exc:
+                    raise SendNotAttempted(str(exc)) from exc
                 self.adapter.send()
             except SendNotAttempted as exc:
                 return self._send_not_attempted_result(
