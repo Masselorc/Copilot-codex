@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+state/
+evidence/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.lock
+.env
+.env.*
+*.log
+screenshots/
+install-test-*/
+protocol-test-*/
+attachment-test-*/
