@@ -167,5 +167,29 @@ class ClickControlTests(unittest.TestCase):
         self.assertEqual(len(user.send_calls), 1)
 
 
+@unittest.skipIf(native_uia is None,"Native Windows ABI unavailable")
+class ExactSelectorTests(unittest.TestCase):
+    class Node:
+        def __init__(self,identifier,name):
+            self.props={"id":identifier,"name":name,"type":50005,"offscreen":False}
+        def prop(self,key):return self.props[key]
+
+    def test_empty_action_id_excludes_same_title_history_in_real_matcher(self):
+        action=self.Node("","Novo chat")
+        history=self.Node("synthetic-history-id","Novo chat")
+        automation=object.__new__(native_uia.Automation)
+        automation.all=lambda root:[history,action]
+        self.assertIs(automation._exact(None,id="",name="Novo chat",type="Hyperlink"),action)
+
+    def test_ambiguity_diagnostic_names_selector_without_candidate_content(self):
+        automation=object.__new__(native_uia.Automation)
+        automation.all=lambda root:[self.Node("synthetic-public-id","PRIVATE_SYNTHETIC_TITLE") for _ in range(2)]
+        with self.assertRaises(OSError) as error:
+            automation._exact(None,id="synthetic-public-id",type="Hyperlink")
+        self.assertIn("synthetic-public-id",str(error.exception))
+        self.assertIn("found 2",str(error.exception))
+        self.assertNotIn("PRIVATE_SYNTHETIC_TITLE",str(error.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

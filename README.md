@@ -4,6 +4,8 @@ Skill e cliente Python para Codex consultar o aplicativo Microsoft 365 Copilot p
 
 Usa apenas a biblioteca padrão do Python e APIs públicas UI Automation/SendInput. Não precisa de Node.js, extensão, chave de API ou mudança de segurança. A interface em português foi testada com Python 3.14.7 de 64 bits. Outras versões do aplicativo, idiomas ou disponibilidade de modelo exigem verificação local.
 
+A ação Novo chat é identificada dentro do documento de chat validado, distinguindo a ação de uma conversa do histórico com o mesmo título. Qualquer ambiguidade restante impede a ação, sem escolha por ordem. A correção foi conferida por leitura na interface real e com regressões sintéticas; não autoriza repetir requests UNKNOWN nem comprova nova transmissão ponta a ponta.
+
 ## Instalação em outro Windows
 
 1. Instale Python de 64 bits, versão 3.10 ou superior, pelos meios aprovados no computador de destino. Tenha Microsoft 365 Copilot instalado, aberto e autenticado normalmente, com Opus 5.5 disponível.

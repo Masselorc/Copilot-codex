@@ -219,6 +219,19 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(PendingRequestError):
             self.query(request_id="req-2", prompt="Another synthetic consultation")
 
+        # Replacing/fixing an adapter does not turn UNKNOWN into permission to
+        # prepare or send again. Exercise a fresh adapter with no UI history.
+        repaired_adapter=FakeAdapter()
+        previous_adapter=self.protocol.adapter
+        self.protocol.adapter=repaired_adapter
+        try:
+            after_fix=self.query()
+            self.assertEqual(after_fix["status"],"UNKNOWN")
+            self.assertEqual(repaired_adapter.calls,[])
+            self.assertEqual(repaired_adapter.send_calls,0)
+        finally:
+            self.protocol.adapter=previous_adapter
+
         # Reconciliation observes the exact marker and may complete the record.
         self.adapter.send_error = False
         self.adapter.observe_results.append({

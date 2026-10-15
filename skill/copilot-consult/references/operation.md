@@ -54,6 +54,10 @@ Guardas locais: até 10 requests por tarefa/demanda, 10 anexos e 10 MiB por pedi
 
 Controles são localizados por nome/ID e padrões UIA. Cliques são derivados do retângulo do controle recém-observado, sem coordenadas fixas; entrada normal usa SendInput, sem clipboard. Mudanças da interface interrompem a ação.
 
+A ação Novo chat é procurada somente dentro do documento Copilot validado por domínio e rota de chat. Na interface observada, essa ação é Hyperlink com nome Novo chat e ID vazio; uma conversa do histórico pode ter o mesmo título, mas possui ID de conversa. O seletor exige a identidade observada completa e exatamente um resultado, sem escolher primeiro/último, usar posição ou cair em uma entrada de histórico. Dois controles ainda compatíveis, ausência da ação, ID alterado ou documento inesperado interrompem sem navegação. Uma futura mudança da interface pode exigir nova validação; não relaxe a unicidade para forçar a operação.
+
+Erros de unicidade agora informam os critérios solicitados e a contagem, sem listar nomes/valores dos candidatos ou conteúdo de conversas. A identificação da colisão e a correção do seletor não provam se uma tentativa anterior transmitiu conteúdo. Corrigir a interface não altera UNKNOWN, não cria nova autorização e não permite repetir uma request incerta; mantenha somente recuperação/leitura dentro do escopo aprovado.
+
 TextPattern usa `GetText(-1)` no corpo da resposta. Blocos de código na estrutura observada são reconstruídos pelos pares número/conteúdo de linha, preservando indentação; lacunas e estruturas desconhecidas são recusadas. Ícones/citações podem aparecer como U+FFFC. Tabelas podem perder apresentação visual; código/respostas muito longos ou virtualizados ainda precisam de verificação específica. Não conclua que nada foi enviado pela ausência de texto.
 
 Geração estritamente simultânea em duas conversas não foi comprovada. Foi possível alternar e recuperar resultados finais isolados; a árvore UIA invalidou-se transitoriamente ao alternar. Uma segunda abertura do aplicativo reutilizou a janela. O CLI permanece conservador e serial.

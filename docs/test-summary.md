@@ -36,6 +36,16 @@ A suíte final executou 47 testes: 46 aprovados e um ignorado (symlink real sem 
 
 ## Limites conhecidos
 
+### Colisão entre ação Novo chat e título do histórico
+
+Um novo teste nativo sintético mostrou leitura espontânea da skill, indicação dos critérios 1/4, proposta de revisão e aprovação humana. A tentativa autorizada e uma recuperação posterior terminaram sem resposta recuperada; o ledger permaneceu UNKNOWN. Isso comprova o fluxo observável de carregamento/proposta nesse caso, sem comprovar revisão externa concluída, eficácia determinística do modelo ou momento ideal da consulta.
+
+Na inspeção somente de leitura da interface atual, o seletor antigo por nome Novo chat e tipo Hyperlink reproduziu dois candidatos: a ação de navegação com ID vazio e uma entrada de histórico com o mesmo título e ID de conversa. O erro histórico não incluía os critérios do seletor, portanto essa é uma causa técnica reproduzida do sintoma, sem afirmar exclusividade histórica. O novo seletor foi validado na mesma interface por leitura: documento de chat do domínio correto, identidade completa da ação e unicidade, sem clique, digitação, navegação ou envio.
+
+A suíte atual executou 93 testes: 92 aprovados e um ignorado (symlink Windows). As novas regressões usam árvores sintéticas e o matcher nativo sem COM ativo: colisão de título em ambas as ordens, dois candidatos de ação, apenas histórico, ação fora do documento, domínio/rota inesperados, identidade alterada e diagnóstico sem conteúdo privado de candidatos. O teste de protocolo também substitui o adaptador após UNKNOWN e confirma zero chamadas/envios no adaptador corrigido ao repetir a mesma request. Não houve alteração de protocolo, autorização, estado de produção ou momento semântico da consulta.
+
+A request anterior foi conferida por SELECT em conexão somente leitura, sem prompt ou resposta expostos. Não foi reclassificada, retomada ou reenviada. A aplicação do novo seletor não demonstra ausência de transmissão anterior. O teste completo com transmissão da versão corrigida exige autorização separada. Inspeção real de controles, testes sintéticos e transmissão ponta a ponta permanecem resultados distintos.
+
 ### Obrigação de carregar, avaliar e propor
 
 As instruções deixaram de apenas recomendar considerar uma consulta: reconhecer um dos 19 critérios relevantes exige carregar o SKILL.md, indicar critério/contribuição e propor a consulta, mesmo sem menção explícita ao Copilot. Sem autorização válida na tarefa/escopo/dados, a ação é solicitar autorização sem abrir ou transmitir; com autorização válida, segue dentro dos limites. Negativas e tarefas simples sem critério relevante continuam preservadas. O lembrete SessionStart inclui o caminho instalado e o procedimento condicional, sem tentar classificar o pedido ou fazer vínculo/autorização automáticos.

@@ -296,7 +296,10 @@ class Automation:
                 continue
             matches.append(e)
         if len(matches) != 1:
-            raise OSError(f"Expected exactly one accessible control, found {len(matches)}")
+            # Report only caller-supplied selector criteria, never candidate
+            # Names, values, document contents or matched conversation titles.
+            selector={"id":id,"name":name,"type":type,"visible":visible}
+            raise OSError(f"Expected exactly one accessible control for {selector!r}, found {len(matches)}")
         return matches[0]
 
     def copilot(self):

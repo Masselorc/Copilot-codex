@@ -35,12 +35,28 @@ class CopilotApp:
     def root(self):
         return self.exact(id="RootWebArea",type="Document")
 
-    def conversation_id(self):
-        url=urlsplit(self.root().value())
-        if url.scheme != "https" or url.hostname != "m365.cloud.microsoft" or not url.path.startswith("/hwav2/chat"):
+    def app_document(self):
+        document=self.root()
+        url=urlsplit(document.value())
+        if url.scheme != "https" or url.hostname != "m365.cloud.microsoft" or not re.fullmatch(r"/hwav2/chat(?:/conversation/[0-9a-fA-F-]{36})?/?",url.path):
             raise RuntimeError("Unexpected Copilot app document location; stop")
+        return document,url
+
+    def conversation_id(self):
+        _,url=self.app_document()
         match=re.fullmatch(r"/hwav2/chat/conversation/([0-9a-fA-F-]{36})/?",url.path)
         return match.group(1).lower() if match else None
+
+    def new_chat_control(self):
+        """Observed action identity, scoped to the validated Copilot document.
+
+        A history conversation can also be titled 'Novo chat', but carries a
+        conversation automation ID. The observed navigation action has an empty
+        ID. Require that complete identity and uniqueness; never select first
+        or fall back to a history entry when the layout changes.
+        """
+        document,_=self.app_document()
+        return self.a.exact(document,id="",name="Novo chat",type="Hyperlink")
 
     def wait(self, read, predicate, seconds=10):
         deadline=time.monotonic()+seconds
@@ -87,7 +103,7 @@ class CopilotApp:
 
     def create_conversation(self, marker):
         self.no_draft()
-        self.exact(name="Novo chat",type="Hyperlink").invoke()
+        self.new_chat_control().invoke()
         self.wait(self.conversation_id,lambda v:v is None)
         self.no_draft()
         self.ensure_model()
