@@ -36,6 +36,16 @@ A suíte final executou 47 testes: 46 aprovados e um ignorado (symlink real sem 
 
 ## Limites conhecidos
 
+### Obrigação de carregar, avaliar e propor
+
+As instruções deixaram de apenas recomendar considerar uma consulta: reconhecer um dos 19 critérios relevantes exige carregar o SKILL.md, indicar critério/contribuição e propor a consulta, mesmo sem menção explícita ao Copilot. Sem autorização válida na tarefa/escopo/dados, a ação é solicitar autorização sem abrir ou transmitir; com autorização válida, segue dentro dos limites. Negativas e tarefas simples sem critério relevante continuam preservadas. O lembrete SessionStart inclui o caminho instalado e o procedimento condicional, sem tentar classificar o pedido ou fazer vínculo/autorização automáticos.
+
+A suíte atual executou 85 testes: 84 aprovados e um ignorado por permissão de symlink. A regressão de cronograma usa uma solicitação sintética com tarefas A–G, dependências, prova e alternativas, sem citar Copilot, com expectativa de critérios 1/4 anotada no teste. Ela confere estruturalmente o contrato na skill e no lembrete, e verifica emissão em sessões vinculadas/não vinculadas, limite de repetições, ausência de autorização automática e ressalvas para tarefa simples/negativa. Não usa modelo nem algoritmo de classificação semântica; portanto não demonstra que um modelo nativo realmente leu a skill ou propôs a consulta. Os demais testes continuam cobrindo as cinco regras e a guarda independente do envio.
+
+Nenhum novo turno nativo ou consulta real Copilot foi iniciado nesta alteração. O teste nativo anterior de cronograma resolveu o problema com quatro comandos locais bem-sucedidos, sem chamada Copilot observável; a descoberta atual e um marcador de início não demonstravam o carregamento integral da skill. Essa observação motivou o contrato explícito, sem atribuição de raciocínio privado ou promessa de obediência determinística.
+
+Mantiveram-se cinco definições, timeout de 10s e as mesmas condições de emissão/deduplicação. A alteração é no texto da skill e no conteúdo retornado pelo script; comandos e configuração de hooks não mudam. O estado não é apagado: sessões que já consumiram o lembrete podem precisar de um próximo início/retomada elegível para recebê-lo. Confiança no catálogo deve ser conferida separadamente da execução nativa e do comportamento do modelo. Para validação, repetir o desafio sem citar a skill em um turno nativo autorizado, observar leitura da skill e proposta/pedido de autorização, sem consentir envio ao Copilot durante esse teste.
+
 ### Correção após timeouts nativos
 
 Uma captura fornecida pelo usuário registrou 22 execuções, zero bloqueios e três falhas por timeout de dois segundos: duas de authorize e uma de cost. Também mostrou conclusão de SessionStart/session, PostToolUse/failures e outra ocorrência de cost. Isso é evidência de eventos nativos anteriores à correção; não comprova as cinco regras nem a eficácia da guarda de autorização. A leitura da Library confirmou o texto e metadados; a materialização local pelo helper oficial foi impedida por ausência de os.setxattr no Windows, sem contorno desse fluxo.

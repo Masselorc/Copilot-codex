@@ -1,13 +1,13 @@
 ---
 name: copilot-consult
-description: Consultar Microsoft 365 Copilot no Windows com Claude Opus 5.5 como apoio em problemas complexos, tentativas fracassadas, sínteses volumosas, comparação de alternativas, erros recorrentes, contradições documentais, decisões que afetam várias partes, revisão independente, incerteza relevante, divergência entre testes e realidade, correção sem causa identificada, mudanças difíceis de reverter, segurança ou integridade, revisão final extensa, execução demorada ou cara, requisito sem comprovação, casos extremos esquecidos, solução impraticável de instalar/usar/manter ou retomada após perda de contexto. Exige autorização humana por tarefa.
+description: Carregar esta skill, avaliar critérios e propor consulta ao Microsoft 365 Copilot com Claude Opus 5.5 quando reconhecer problema complexo, tentativa fracassada, síntese volumosa, comparação de alternativas, erro recorrente, contradição documental, decisão que afeta várias partes, revisão independente, incerteza relevante, divergência entre testes e realidade, correção sem causa identificada, mudança difícil de reverter, segurança ou integridade, revisão final extensa, execução demorada ou cara, requisito sem comprovação, casos extremos esquecidos, solução impraticável de instalar/usar/manter ou retomada após perda de contexto. Não depende de menção explícita ao Copilot. Solicitar autorização humana por tarefa antes de transmitir, salvo autorização válida já existente no mesmo escopo; respeitar negativas e limites de dados.
 ---
 
 Use `scripts/copilot.py` para controlar o aplicativo Microsoft 365 Copilot pela interface normal do Windows. Leia [operação e limites](references/operation.md) antes da primeira consulta. O transporte usa Python e UI Automation/SendInput públicos, sem Node.js, API privada, cookies, tokens, DevTools ou extensões.
 
 ## Gatilhos de consulta
 
-Considere propor uma consulta quando uma segunda análise puder contribuir para uma destas situações:
+Ao reconhecer um critério efetivamente relevante, carregue esta skill e siga a avaliação e proposta obrigatórias abaixo, mesmo sem menção explícita ao Copilot. Não transforme tarefas simples ou comparações triviais em consultas obrigatórias. Os critérios são:
 
 1. **Problema complexo.**
 2. **Tentativa fracassada de solução.**
@@ -29,7 +29,21 @@ Considere propor uma consulta quando uma segunda análise puder contribuir para 
 18. **Solução correta, mas impraticável:** revisar viabilidade de instalação, uso e manutenção no ambiente real; por exemplo, dependência indisponível no Windows de destino. Esse critério trata operação, enquanto o 12 trata reversibilidade.
 19. **Retomada após perda de contexto:** reavaliar hipóteses e pendências após compaction ou retomada; primeiro conferir estado, autorizações e envios incertos, sem repetir ações.
 
-São critérios para julgamento do agente, sem disparos automáticos por contagem ou tempo. Ao sugerir uma consulta, explique o motivo e a contribuição esperada. A presença de um gatilho não autoriza transmitir conteúdo: siga a autorização por tarefa descrita abaixo.
+## Avaliação e proposta observáveis
+
+Reconhecer a relevância de um critério exige julgamento do agente; os hooks não classificam semanticamente a solicitação. Uma vez reconhecido um critério relevante, é obrigatório carregar o SKILL.md antes da solução principal e registrar o resultado da avaliação em mensagem curta ao usuário: indique o número/nome do critério e a contribuição concreta esperada da segunda análise. Não exponha raciocínio interno privado. A ausência de pedido explícito para usar a skill não dispensa esse procedimento.
+
+Proponha a consulta quando houver critério aplicável. Sem autorização humana válida já existente para a mesma tarefa, escopo e limites de dados, solicite autorização uma única vez, explicando finalidade, conteúdo e destino; não transmita, não execute doctor nem abra o Copilot enquanto aguarda. Continue nas partes independentes que puder executar localmente. Com autorização válida, informe o critério e prossiga conforme o escopo aprovado sem perguntar novamente; somente então faça as verificações de operação e envio.
+
+Uma negativa, revogação, proibição de consulta nesta tarefa ou restrição de dados prevalece: registre brevemente o impedimento quando necessário, continue localmente e não repita a proposta nem a pergunta para contornar essa decisão. Indisponibilidade de modelo, conta ou limite também não autoriza substituição ou insistência. Carregar a skill e avaliar critérios não concede autorização.
+
+Se nenhum critério for relevante, resolva a tarefa normalmente, sem proposta artificial. Não use uma solução local bem-sucedida para dispensar critérios relevantes já reconhecidos: por exemplo, comparar cenários e verificar uma prova por programa não elimina, por si só, a necessidade de propor a segunda análise de um problema complexo.
+
+Exemplo sintético de regressão: otimizar um cronograma de sete tarefas A–G com duas pessoas, dependências, indisponibilidades, prova de mínimo e comparação de liberações deve levar a carregar a skill, avaliar os critérios 1 e 4 e propor a consulta, ainda que o texto não cite Copilot. Sem autorização, a ação esperada é a proposta com pedido de autorização, sem envio. Uma soma simples com resultado direto não recebe essa obrigação apenas por iniciar uma sessão.
+
+Antes de depender de contadores por etapa, custo marcado ou revisão extensa, vincule a sessão/tarefa conforme o guia de hooks, usando somente IDs confiáveis fornecidos pelo runtime. Esse vínculo é metadata e não autorização. Se os IDs não estiverem disponíveis, informe a limitação dos contadores; a falta de vínculo não dispensa carregar a skill, avaliar e propor. Não descubra IDs lendo transcrições nem invente autorização.
+
+A obrigação acima é uma instrução de comportamento verificável por registros de carregamento e mensagens/chamadas observáveis; não é garantia de obediência determinística de qualquer modelo. Testes de texto e de handlers sintéticos não comprovam que um turno nativo carregou a skill ou propôs a consulta.
 
 Os cinco hooks opcionais são outra camada: lembretes por eventos e conferência adicional do envio. Leia [hooks, ativação e remoção](references/hooks.md) para preparar o vínculo da tarefa e registrar configurações somente quando autorizado. A execução exige revisão/confiança pelo usuário no Codex; não aprove confiança ou altere segurança automaticamente. Os hooks não enviam conteúdo ao Copilot e não concedem autorização.
 

@@ -18,7 +18,7 @@ SCRIPTS=PACKAGE/"skill"/"copilot-consult"/"scripts"
 sys.path[:0]=[str(PACKAGE),str(SCRIPTS)]
 import manage_hooks
 import install_skill
-from hook_dispatch import Store, canonical, failure_code, dispatch
+from hook_dispatch import Store, canonical, failure_code, dispatch, session_reminder
 from authorization import scope_hash,check_grant
 from protocol import CopilotProtocol,GrantRequired,GrantScopeError
 
@@ -88,6 +88,60 @@ class HooksTests(unittest.TestCase):
         self.assertTrue(self.run_rule("session","SessionStart"))
         self.bind(task="task-b")
         self.assertTrue(self.run_rule("session","SessionStart"))
+
+    def test_schedule_fixture_structural_contract_without_model_execution(self):
+        # Human-labelled regression fixture, NOT a semantic classifier or LLM
+        # execution. This verifies the instruction/handler contract only.
+        request=("Otimize sete tarefas A-G com duas pessoas. A dura 3 dias; B 2; "
+                 "C depende de A; D depende de A e B; E depende de B; F depende de C e E; G de D e F. "
+                 "Inclua indisponibilidades, prove o minimo, compare tres liberacoes e confira por programa.")
+        expected_criteria=(1,4)
+        self.assertNotIn("copilot",request.lower())
+        skill=(SCRIPTS.parent/"SKILL.md").read_text(encoding="utf-8")
+        criteria=skill.split("## Gatilhos de consulta",1)[1].split("## Avaliação e proposta observáveis",1)[0]
+        numbered=[int(line.split(". ",1)[0]) for line in criteria.splitlines() if line.split(". ",1)[0].isdigit()]
+        self.assertEqual(numbered,list(range(1,20)))
+        self.assertIn("é obrigatório carregar o SKILL.md",skill)
+        self.assertIn("Proponha a consulta quando houver critério aplicável",skill)
+        self.assertIn("avaliar os critérios 1 e 4",skill)
+        self.assertIn("Sem autorização, a ação esperada é a proposta com pedido de autorização, sem envio",skill)
+        self.assertIn("não é garantia de obediência determinística",skill)
+        reminder=self.run_rule("session","SessionStart")["hookSpecificOutput"]["additionalContext"]
+        for step in ("carregue copilot-consult","Registre criterio","proponha a consulta","solicite uma vez","sem abrir Copilot ou transmitir"):
+            self.assertIn(step,reminder)
+        self.assertIn("avalie "+" e ".join(map(str,expected_criteria)),reminder)
+        self.assertIn(str(SCRIPTS.parent/"SKILL.md"),reminder)
+        self.assertEqual(self.fake.calls,[])
+        self.assertEqual(self.fake.send_count,0)
+
+    def test_bound_and_unbound_session_emit_same_conditional_policy_once(self):
+        for sid in ("session-a","synthetic-unbound"):
+            with self.subTest(session=sid):
+                first=self.run_rule("session","SessionStart",session_id=sid)
+                self.assertEqual(first["hookSpecificOutput"]["additionalContext"],session_reminder())
+                self.assertEqual(self.run_rule("session","SessionStart",session_id=sid),{})
+                self.assertTrue(self.run_rule("session","SessionStart",session_id=sid,source="resume"))
+                self.assertEqual(self.run_rule("session","SessionStart",session_id=sid,source="compact"),{})
+        with sqlite3.connect(self.bridge/"copilot-ledger.sqlite3") as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM grants").fetchone()[0],0)
+        c.close()
+
+    def test_reminder_preserves_simple_task_negatives_and_no_auto_binding(self):
+        # The hook cannot classify either input. Both get a conditional
+        # instruction; neither receives a fabricated proposal or grant.
+        outputs=[]
+        for sid,prompt in (("simple-session","Some 2 + 2"),("restricted-session","Nao consulte outro servico")):
+            value=self.run_rule("session","SessionStart",session_id=sid,user_prompt=prompt)
+            self.assertNotIn("decision",value)
+            text=value["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("Se reconhecer",text)
+            self.assertIn("Respeite negativas sem insistir",text)
+            self.assertIn("Tarefas simples sem criterio nao exigem proposta",text)
+            outputs.append(text)
+            with self.store.connection(readonly=True) as c:
+                self.assertIsNone(c.execute("SELECT task_key FROM bindings WHERE k=?",(Store.binding_key(sid,str(self.project)),)).fetchone())
+        self.assertEqual(outputs[0],outputs[1])
+        self.assertEqual(self.fake.send_count,0)
 
     def test_two_failures_unique_ids_once_only(self):
         self.assertEqual(self.run_rule("failures","PostToolUse"),{})

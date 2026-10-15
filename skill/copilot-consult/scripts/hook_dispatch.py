@@ -16,6 +16,16 @@ RULE_EVENTS={"session":"SessionStart","failures":"PostToolUse","authorize":"PreT
 SELF=re.compile(r"(?:copilot|hook_dispatch|hook_admin|manage_hooks|install_skill|authorization)\.py",re.I)
 
 
+def session_reminder():
+    # Instruction only: SessionStart does not receive/classify the user's task,
+    # load skill contents, create a binding/grant or invoke Copilot itself.
+    skill=Path(__file__).absolute().parent.parent/"SKILL.md"
+    return (f"Se reconhecer um dos 19 criterios relevantes, carregue copilot-consult em {skill} antes da solucao, mesmo sem pedido explicito. "
+            "Registre criterio e contribuicao em mensagem curta; proponha a consulta. Sem autorizacao humana valida da tarefa, solicite uma vez, sem abrir Copilot ou transmitir; se vigente, respeite escopo e dados aprovados. "
+            "Respeite negativas sem insistir. Tarefas simples sem criterio nao exigem proposta. Cronograma com restricoes, prova e comparacao de cenarios: avalie 1 e 4. "
+            "Vincule IDs confiaveis antes dos contadores; falta de vinculo nao dispensa a proposta. Recupere envios incertos sem reenviar.")
+
+
 def digest(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -123,7 +133,7 @@ class Store:
                 if c.execute("SELECT 1 FROM starts WHERE k=?",(token,)).fetchone():
                     return {}
                 c.execute("INSERT INTO starts VALUES(?)",(token,))
-                return context(event,"copilot-consult is available (19 criteria). Bind the current task/stage before hook tracking; confirm human authorization before any Copilot transmission. On resume, recover uncertain requests instead of resending.")
+                return context(event,session_reminder())
             if data is None:
                 return {}
             result=evaluate(rule,payload,data)
@@ -175,7 +185,7 @@ def evaluate(rule,payload,data):
         return {}
     if rule=="session":
         family="startup" if payload.get("source")=="startup" else "resume"
-        return notice(data,event,"session:"+family,"Evaluate copilot-consult's 19 criteria when useful. Authorization is per task. After context loss, verify state and recover uncertain requests; never duplicate a send.")
+        return notice(data,event,"session:"+family,session_reminder())
     if rule=="failures":
         identifier=payload.get("tool_use_id")
         if not isinstance(identifier,str) or not identifier or len(identifier)>256:

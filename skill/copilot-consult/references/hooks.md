@@ -1,12 +1,12 @@
 # Hooks opcionais no Codex
 
-Os 19 critérios continuam sendo julgados pelo agente. Cinco regras locais auxiliam o fluxo; elas não consultam Copilot, não leem transcrições, não criam autorização e não invocam outros processos. O transporte permanece no cliente Python, com a verificação do escopo e de revogação antes do envio.
+Os 19 critérios continuam sendo julgados pelo agente. Ao reconhecer um critério relevante, ele deve carregar a skill, identificar o critério em mensagem curta e propor consulta; sem autorização válida da tarefa/escopo/dados, pede autorização antes de abrir ou transmitir. Negativas e tarefas simples sem critério relevante não recebem consulta forçada. Cinco regras locais auxiliam esse procedimento; elas não consultam Copilot, não leem transcrições, não criam autorização e não invocam outros processos. O transporte permanece no cliente Python, com a verificação do escopo e de revogação antes do envio.
 
 ## Regras e sinais observáveis
 
 | Regra | Evento | Condição e efeito |
 | --- | --- | --- |
-| Início/retomada | SessionStart | Lembrete curto, uma vez no início e uma na família de retomada/compactação por tarefa. Sem vínculo, no máximo dois por sessão. |
+| Início/retomada | SessionStart | Instrução condicional para carregar o SKILL.md pelo caminho instalado, avaliar critérios e propor/pedir autorização quando aplicável, mesmo sem menção explícita. Uma vez no início e uma na família de retomada/compactação por tarefa. Sem vínculo, no máximo dois por sessão. |
 | Falhas semelhantes | PostToolUse | Dois tool_use_id distintos, na mesma etapa, com mesma ferramenta, comando normalizado e código reconhecido. Emite um lembrete por tarefa. |
 | Autorização | PreToolUse | Para query/resume literais de copilot.py, confere vínculo de sessão/tarefa, diretório de estado, projeto/demanda/tarefa e hash do escopo contra o ledger local, incluindo revogação. Ausência ou divergência retorna deny; sucesso não autoaprova a chamada. |
 | Custo/duração | PreToolUse | Comando exato previamente marcado como caro/demorado no vínculo local. Um lembrete por tarefa para avaliar o plano. Não estima custos por palavras soltas. |
@@ -19,6 +19,10 @@ Eventos de copilot.py e dos scripts auxiliares são excluídos dos lembretes e c
 ## Vínculo por tarefa
 
 O runtime fornece session_id e cwd; registre o vínculo antes de depender dos contadores. O ID da tarefa é a mesma identidade usada na autorização do cliente. Não descubra IDs lendo históricos; use os metadados disponíveis na tarefa ou um evento fornecido pelo runtime. Sem ID confiável, os lembretes ficam limitados e o envio identificado é recusado.
+
+A falta de vínculo não dispensa carregar a skill, avaliar critérios ou propor a consulta quando aplicável. O lembrete usa a mesma instrução nas sessões vinculadas e não vinculadas; não inventa identidade, não faz vínculo automático e não transfere autorização. A avaliação observável fica na mensagem ao usuário e, quando ocorrer, na leitura do SKILL.md e nas chamadas do cliente. Não grave conteúdo do pedido ou raciocínio privado no estado dos hooks.
+
+Atualizar o texto do lembrete não reinicia os limites de emissão. Uma conversa que já recebeu seus avisos pode não receber o novo texto de imediato. Para comprovar a proposta espontânea, a sessão nativa precisa receber o catálogo/instrução atualizados e ter um aviso de início/retomada ainda disponível; uma leitura explicitamente solicitada da skill testa seu conteúdo, mas não é prova de ativação espontânea. Não apague estado para forçar o teste e não reinicie o aplicativo automaticamente.
 
 ```text
 python skill/copilot-consult/scripts/hook_admin.py --session ID-DA-SESSAO --cwd CAMINHO-DA-SESSAO --project PROJETO --demand DEMANDA --task TAREFA --stage ETAPA
@@ -74,5 +78,7 @@ Uma recusa JSON explícita é diferente de um timeout ou falha de processo. Não
 Hooks de comando locais exigem orquestração local. A documentação oficial não suporta esses handlers em orquestração cloud, mesmo quando ferramentas executam no computador. Portanto, uma tarefa delegada com execução local não comprova o disparo do cliente Codex nativo. Observe o histórico nativo e diferencie catálogo, evento concluído e efeito da regra.
 
 Os testes do pacote passam JSON sintético aos handlers e usam adaptadores falsos para impedir qualquer envio. Isso comprova as regras locais, sem comprovar eventos nativos ativos, payload de uma versão diferente do runtime ou consulta real. Somente marque um evento como observado quando o runtime efetivamente o produzir.
+
+O teste estrutural de cronograma contém uma solicitação complexa sem citar Copilot e critérios 1/4 anotados para a expectativa. Ele confere que skill e lembrete exigem carregamento, avaliação, proposta e autorização, além de limites para tarefas simples, negativas e repetições. Não executa um modelo, não classifica a solicitação por algoritmo e não comprova a proposta espontânea em conversa nativa. Para essa comprovação, observe um turno autorizado no cliente nativo: leitura da skill, mensagem com critério/proposta e nenhum envio sem consentimento. O lembrete não recebe o pedido completo nem toma essas decisões pelo agente.
 
 Referências verificadas: [Hooks](https://learn.chatgpt.com/docs/hooks), [empacotamento](https://developers.openai.com/plugins/build/plugins). O pacote permanece uma skill com configuração local opcional, sem criar plugin instalado, credenciais, conexão persistente ou publicação automática.

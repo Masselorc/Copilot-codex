@@ -26,9 +26,9 @@ Para atualizar uma instalação gerenciada, acrescente `--update` à simulação
 
 ## Gatilhos de consulta
 
-A skill pode ser sugerida pelo agente conforme os [19 critérios definidos em SKILL.md](skill/copilot-consult/SKILL.md#gatilhos-de-consulta). Os cinco mais recentes cobrem execução demorada/cara, requisito sem comprovação, casos extremos esquecidos, viabilidade de instalação/uso/manutenção e retomada após perda de contexto. Os 14 critérios anteriores continuam presentes.
+A skill deve ser carregada e a consulta proposta quando o agente reconhecer um dos [19 critérios relevantes definidos em SKILL.md](skill/copilot-consult/SKILL.md#gatilhos-de-consulta), mesmo sem pedido explícito para usar Copilot. A mensagem deve indicar critério e contribuição esperada. Os cinco mais recentes cobrem execução demorada/cara, requisito sem comprovação, casos extremos esquecidos, viabilidade de instalação/uso/manutenção e retomada após perda de contexto. Os 14 critérios anteriores continuam presentes.
 
-Esses critérios orientam o julgamento do agente; não há disparo automático por contagem ou tempo. Se ainda não houver autorização para consultas naquela tarefa, o agente explica a finalidade e pede autorização antes de transmitir conteúdo ao Copilot.
+Reconhecer a relevância ainda exige julgamento: os hooks não classificam semanticamente toda solicitação e não garantem comportamento determinístico do modelo. Sem critério relevante, tarefas simples não exigem proposta. Sem autorização válida já existente para aquela tarefa/escopo/dados, o agente deve pedir autorização antes de abrir ou transmitir ao Copilot; com autorização válida, segue os limites sem perguntar novamente. Negativas e proibições prevalecem, sem insistência. Veja [a sequência observável e o exemplo de cronograma](skill/copilot-consult/SKILL.md#avaliação-e-proposta-observáveis).
 
 ## Cinco hooks locais opcionais
 
